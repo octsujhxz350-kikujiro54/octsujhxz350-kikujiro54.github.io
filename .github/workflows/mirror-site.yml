@@ -1,0 +1,42 @@
+name: Mirror resume site
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - deploy-manifest.txt
+      - .github/workflows/mirror-site.yml
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download static site snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_url="https://tangmao-resume-dpyqziudggrl.edgeone.cool"
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            mkdir -p "$(dirname "$path")"
+            curl --fail --location --retry 5 --retry-delay 3 --connect-timeout 30 \
+              "$base_url/$path" -o "$path"
+          done < deploy-manifest.txt
+      - name: Commit mirrored website
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish."
+          else
+            git commit -m "Publish complete resume website"
+            git push
+          fi
